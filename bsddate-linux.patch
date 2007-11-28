@@ -1,0 +1,96 @@
+diff -Nur date.freebsd/bsdcompat.h date.linux/bsdcompat.h
+--- date.freebsd/bsdcompat.h	1970-01-01 01:00:00.000000000 +0100
++++ date.linux/bsdcompat.h	2007-11-28 18:11:16.735113034 +0100
+@@ -0,0 +1,43 @@
++#ifndef _BSDCOMPAT_H
++#define _BSDCOMPAT_H
++
++#define _BSD_SOURCE
++#define _XOPEN_SOURCE
++#include <err.h>
++#include <errno.h>
++#include <langinfo.h>
++#include <stdarg.h>
++#include <string.h>
++#include <time.h>
++#include <sys/time.h>
++
++#define __FBSDID(x)
++
++static inline size_t strlcpy(char *dest, const char *src, size_t n)
++{
++	strncpy(dest, src, n-1);
++	dest[n-1] = 0;
++	return strlen(src);
++}
++
++static inline void warnc(int code, const char *fmt, ...)
++{
++	int saveerrno = errno;
++	va_list va;
++	errno = code;
++	va_start(va, fmt);
++	vwarn(fmt, va);
++	va_end(va);
++	errno = saveerrno;
++}
++
++static inline const char *date_time_fmt(void)
++{
++	const char *fmt = nl_langinfo(_DATE_FMT);
++	if(fmt != NULL)
++		return fmt;
++	else
++		return "%a %b %e %H:%M:%S %Z %Y";
++}
++
++#endif /* _BSDCOMPAT_H */
+diff -Nur date.freebsd/date.1 date.linux/date.1
+--- date.freebsd/date.1	2007-11-28 07:24:41.000000000 +0100
++++ date.linux/date.1	2007-11-28 17:42:31.472795937 +0100
+@@ -33,10 +33,10 @@
+ .\" $FreeBSD: src/bin/date/date.1,v 1.75 2007/06/02 20:15:59 remko Exp $
+ .\"
+ .Dd June 2, 2007
+-.Dt DATE 1
++.Dt BSDDATE 1
+ .Os
+ .Sh NAME
+-.Nm date
++.Nm bsddate
+ .Nd display or set date and time
+ .Sh SYNOPSIS
+ .Nm
+diff -Nur date.freebsd/date.c date.linux/date.c
+--- date.freebsd/date.c	2007-11-28 07:24:41.000000000 +0100
++++ date.linux/date.c	2007-11-28 18:03:51.945765934 +0100
+@@ -143,7 +143,7 @@
+ 	if (!rflag && time(&tval) == -1)
+ 		err(1, "time");
+ 
+-	format = "%+";
++	format = date_time_fmt();
+ 
+ 	/* allow the operands in any order */
+ 	if (*argv && **argv == '+') {
+diff -Nur date.freebsd/libutil.h date.linux/libutil.h
+--- date.freebsd/libutil.h	1970-01-01 01:00:00.000000000 +0100
++++ date.linux/libutil.h	2007-11-28 17:45:10.093835235 +0100
+@@ -0,0 +1 @@
++#include <utmp.h>
+diff -Nur date.freebsd/Makefile date.linux/Makefile
+--- date.freebsd/Makefile	1970-01-01 01:00:00.000000000 +0100
++++ date.linux/Makefile	2007-11-28 18:17:20.815860813 +0100
+@@ -0,0 +1,12 @@
++CC=gcc
++CFLAGS=-O2 -Wall
++CPPFLAGS=-I. -include bsdcompat.h
++LDFLAGS=
++LIBS=-lutil
++
++date: date.o netdate.o vary.o
++	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $^ $(LIBS)
++
++date.o: extern.h vary.h libutil.h bsdcompat.h
++netdate.o: extern.h bsdcompat.h
++vary.o: vary.h bsdcompat.h
